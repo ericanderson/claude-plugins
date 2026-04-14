@@ -1,6 +1,6 @@
-# Claude Plugin Marketplace
+# EA's Claude Plugins
 
-A Claude Code plugin marketplace and plugin host.
+Claude Code plugin marketplace and plugin host.
 
 ## Usage
 
@@ -13,15 +13,19 @@ Add this marketplace:
 Install a plugin:
 
 ```bash
-/plugin install <plugin-name>@ericanderson-claude
+/plugin install <plugin-name>@ea-claude
 ```
+
+## Plugins
+
+- **cleanroom** — Launch isolated background agents for unbiased codebase analysis
 
 ## Structure
 
 ```
 .claude-plugin/
   marketplace.json    # Plugin catalog
-plugins/              # Hosted plugins
+plugins/
   <plugin-name>/
     .claude-plugin/
       plugin.json     # Plugin manifest

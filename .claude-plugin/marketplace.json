@@ -1,11 +1,16 @@
 {
-  "name": "ea-codes",
+  "name": "ea-claude",
   "owner": {
     "name": "Eric Anderson"
   },
   "metadata": {
-    "description": "Claude Code plugins by Eric Anderson",
-    "pluginRoot": "./plugins"
+    "description": "Claude Code plugins by Eric Anderson"
   },
-  "plugins": []
+  "plugins": [
+    {
+      "name": "cleanroom",
+      "source": "./plugins/cleanroom",
+      "description": "Launch isolated background agents for unbiased analysis without conversation context contamination"
+    }
+  ]
 }
