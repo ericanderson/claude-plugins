@@ -1,0 +1,11 @@
+{
+  "name": "ea-codes",
+  "owner": {
+    "name": "Eric Anderson"
+  },
+  "metadata": {
+    "description": "Claude Code plugins by Eric Anderson",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": []
+}
