@@ -7,7 +7,7 @@ Claude Code plugin marketplace and plugin host.
 Add this marketplace:
 
 ```bash
-/plugin marketplace add ericanderson/claude
+/plugin marketplace add ericanderson/claude-plugins
 ```
 
 Install a plugin:
