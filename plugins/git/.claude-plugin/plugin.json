@@ -1,0 +1,5 @@
+{
+  "name": "git",
+  "description": "Git host helpers — detects GitHub vs Forgejo from the repo origin and steers Claude to the right CLI (gh vs fj). Ships skills for filing Forgejo issues and PRs.",
+  "version": "1.0.0"
+}

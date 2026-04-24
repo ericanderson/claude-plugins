@@ -19,3 +19,4 @@ Install a plugin:
 ## Plugins
 
 - **cleanroom** — Launch isolated background agents for unbiased codebase analysis
+- **git** — Detects GitHub vs Forgejo from the repo origin and steers Claude to the right CLI (`gh` vs `fj`). Ships the `forgejo-issue` and `forgejo-pr` skills plus a `PreToolUse` hook that blocks wrong-CLI calls before they hit the network.
