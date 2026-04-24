@@ -22,13 +22,13 @@ origin_url="$(git -C "$cwd" config --get remote.origin.url 2>/dev/null || true)"
 
 case "$origin_url" in
   *github.com*)
-    msg="Git host: GitHub ($origin_url). Use \`gh\` for issues/PRs."
+    msg="Git host: GitHub ($origin_url). Use \`gh\` for issues and PRs."
     ;;
   *gitlab.*|*bitbucket.*)
     exit 0
     ;;
   *)
-    msg="Git host: Forgejo ($origin_url). Use \`fj\` (forgejo-cli) for issues/PRs, not \`gh\`. The forgejo-issue / forgejo-pr skills cover the syntax."
+    msg="Git host: Forgejo ($origin_url). Use \`fj\` (forgejo-cli), NOT \`gh\` — the wrong tool is hard-blocked by a PreToolUse hook. Before filing an issue, invoke the \`git:forgejo-issue\` skill. Before opening a PR, invoke the \`git:forgejo-pr\` skill. Those skills have the correct syntax for flags, body files, and authentication."
     ;;
 esac
 
