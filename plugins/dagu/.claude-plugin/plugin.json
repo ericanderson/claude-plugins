@@ -1,0 +1,5 @@
+{
+  "name": "dagu",
+  "description": "Helpers for operating dagu workflow runs (start, watch, diagnose, stop, retry). Ships a generic using-dagu skill; repo-specific DAG names and paths stay in each project's CLAUDE.md.",
+  "version": "1.0.0"
+}
