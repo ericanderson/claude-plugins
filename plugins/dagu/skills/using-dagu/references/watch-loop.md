@@ -26,10 +26,10 @@ so the next firing can diff without re-reading run history. Format:
 from the integer status enum (see `on-disk.md`): 0→pending, 1→running, 2→failed,
 3→cancelled, 4→done.
 
-Example mid-run snapshot for the `financial-data` DAG:
+Example mid-run snapshot for a 5-step DAG:
 
 ```
-sync-repo:done,catch-up:done,snaptrade-pull:running,plaid-pull:pending,finish:pending,prices:pending,reports:pending,push:pending,mirror-user-checkout:pending
+fetch:done,validate:done,transform:running,load:pending,notify:pending
 ```
 
 ## Per-tick decision tree
@@ -79,14 +79,13 @@ When the run reaches a terminal state, emit one consolidated message:
 <dag-name> run <run-id-short> finished: <status>  (<duration>)
 
 Timeline:
-  [HH:MM:SS] sync-repo: 0s  ✓
-  [HH:MM:SS] catch-up: 8s  ✓
-  [HH:MM:SS] snaptrade-pull: 1m 0s  ✓
-  [HH:MM:SS] plaid-pull: 4s  ✓
-  [HH:MM:SS] finish: 9s  ✓
-  [HH:MM:SS] prices: 1m 9s  ✗ failed
+  [HH:MM:SS] fetch: 0s  ✓
+  [HH:MM:SS] validate: 8s  ✓
+  [HH:MM:SS] transform: 1m 0s  ✓
+  [HH:MM:SS] load: 4s  ✓
+  [HH:MM:SS] notify: 1m 9s  ✗ failed
     (last 20 lines of .err)
-  [HH:MM:SS] reports: SKIPPED (continueOn: failure on prices)
+  [HH:MM:SS] cleanup: SKIPPED (continueOn: failure on notify)
 
 Logs: <path-to-dag-run-dir>
 ```
