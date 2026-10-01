@@ -117,6 +117,27 @@ run deny "gh label create -d" "gh label create x -d secretproj"
 run ctx  "piped stdin body is flagged" "cat x | gh pr create -F -"
 check "piped stdin is called out" grep -q 'stdin was not scanned' <<<"$last"
 
+# --- Read-only gh calls aren't publishing ---
+run none "gh pr view" "gh pr view 9 --json state -q .state"
+run none "gh pr list" "gh pr list --state open"
+run none "gh pr checks" "gh pr checks 9"
+run none "gh issue view with comments" "gh issue view 3 --comments"
+run none "gh pr view mentioning a denylisted term" "gh pr view 9 --json body | grep secretproj"
+run none "gh api GET" "gh api repos/o/r/pulls"
+run none "gh api explicit GET" "gh api -X GET repos/o/r"
+run none "gh repo view" "gh repo view o/r"
+run none "gh label list" "gh label list"
+# …while writes are still caught, with options in between.
+run deny "gh -R before the group" "gh -R o/r pr create --title x --body secretproj"
+run deny "gh option between group and verb" "gh pr -R o/r edit 3 --body secretproj"
+run deny "gh pr comment" "gh pr comment 3 --body secretproj"
+run deny "gh issue close with comment" "gh issue close 3 --comment secretproj"
+run deny "gh api -f" "gh api repos/o/r/issues -f body=secretproj"
+run deny "gh api -X PATCH --input" "gh api -X PATCH repos/o/r/issues/1 --input $t/body.md"
+run ctx  "gh api -XPOST" "gh api -XPOST repos/o/r/dispatches"
+run deny "gh api leading -f" "gh api -f body=secretproj repos/o/r/issues"
+run ctx  "gh pr merge" "gh pr merge 3 --squash"
+
 # --- Finding 8: file names ---
 echo "clean" > "secretproj-notes.md"; git add secretproj-notes.md
 run deny "staged file name" "git commit -m 'add notes'"

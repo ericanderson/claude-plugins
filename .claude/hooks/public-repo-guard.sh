@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # PreToolUse hook: this repo is public, so check anything about to be published.
 #
-# Fires on Bash commands that publish: git commit / git push, and gh
-# pr/issue/release/gist/api/repo/label/project/workflow. For those it:
+# Fires on Bash commands that publish: git commit / git push, gh
+# pr/issue/release/gist/label/repo/project/workflow with a writing verb
+# (create, edit, comment, …), and gh api calls that send data. For those it:
 #   1. scans what would become public against a private denylist and denies
 #      the call on a match:
 #        - the command line, and files it names (--body-file, --notes-file,
@@ -44,13 +45,21 @@ boundary='(^|[^A-Za-z0-9_.-])'
 end='([^A-Za-z0-9_-]|$)'
 commit_re="${boundary}git[^;&|]*[[:space:]]commit${end}"
 push_re="${boundary}git[^;&|]*[[:space:]]push${end}"
-gh_re="${boundary}gh[^;&|]*[[:space:]](pr|issue|release|gist|api|repo|label|project|workflow)${end}"
-gh_pr_create_re="${boundary}gh[^;&|]*[[:space:]]pr[[:space:]]+create${end}"
+# gh only when it writes: a publishing verb right after the command group
+# (options allowed in between), or `gh api` with a body (-f/-F/--input) or a
+# non-GET method. Read-only calls (view, list, status, checks, diff, plain
+# api GETs) aren't scanned.
+gh_flags='([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:];&|][^[:space:];&|]*)?)*'
+gh_groups='(pr|issue|release|gist|label|repo|project|workflow)'
+gh_verbs='(create|edit|comment|review|merge|close|reopen|upload|delete|ready|lock|unlock|transfer|pin|unpin|rename|archive|unarchive|run|item-create|item-edit|item-add|field-create|copy)'
+gh_re="${boundary}gh${gh_flags}[[:space:]]+${gh_groups}${gh_flags}[[:space:]]+${gh_verbs}${end}"
+gh_api_write_re="${boundary}gh${gh_flags}[[:space:]]+api([[:space:]][^;&|]*)?[[:space:]]((-f|-F|--field|--raw-field|--input)([[:space:]=]|$)|(-X|--method)([[:space:]]+|=)?(POST|PUT|PATCH|DELETE|post|put|patch|delete)${end})"
+gh_pr_create_re="${boundary}gh${gh_flags}[[:space:]]+pr${gh_flags}[[:space:]]+create${end}"
 
 is_commit=false; is_push=false; is_gh=false; is_pr_create=false
 [[ "$cmd" =~ $commit_re ]] && is_commit=true
 [[ "$cmd" =~ $push_re ]] && is_push=true
-[[ "$cmd" =~ $gh_re ]] && is_gh=true
+[[ "$cmd" =~ $gh_re || "$cmd" =~ $gh_api_write_re ]] && is_gh=true
 [[ "$cmd" =~ $gh_pr_create_re ]] && is_pr_create=true
 $is_commit || $is_push || $is_gh || exit 0
 
