@@ -14,3 +14,5 @@ Never include:
 Use placeholders instead: `example.org`, `git.example.org`, `owner/repo`, `$HOME`. When a change comes from work in another (private) repo, describe the problem generically ("a per-repo stopgap script", "a downstream pipeline") rather than naming it.
 
 `.claude/hooks/public-repo-guard.sh` checks publishing commands against a private denylist kept outside the repo. A block from it means: genericize the matched text and retry — don't repeat the matched text anywhere public.
+
+`.claude/hooks/**`, `.claude/settings.json`, and `.claude/settings.local.json` are protected by `Edit` deny rules, so file tools (and Bash `sed`/`tee`/redirections) can't change the guard or switch it off. If a change there is needed, propose the diff and ask the user to apply it.
