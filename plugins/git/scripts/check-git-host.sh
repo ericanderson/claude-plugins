@@ -33,9 +33,12 @@ cwd="$(printf '%s' "$input" | jq -r '.cwd // ""')"
 # Drop text that is data rather than commands before matching: heredoc bodies,
 # single-quoted strings, and double-quoted strings without a command
 # substitution. So writing an issue body that mentions `gh issue create` to a
-# file isn't mistaken for running it. Without perl, match the raw command.
+# file isn't mistaken for running it. Skipped when the command hands text to a
+# shell or eval (`bash -c "…"`, `eval "…"`, `sh <<EOF`), since that text runs.
+# Without perl, or if perl fails, match the raw command.
 scan_line="$command_line"
-if command -v perl >/dev/null 2>&1; then
+shell_exec_re='(^|[^A-Za-z0-9_./-])(bash|sh|zsh|dash|ksh|eval)([[:space:]]|$)'
+if [[ ! "$command_line" =~ $shell_exec_re ]] && command -v perl >/dev/null 2>&1; then
   scan_line="$(printf '%s' "$command_line" | perl -e '
     my @out; my @ends;
     for my $line (split /\n/, do { local $/; <STDIN> }) {
@@ -51,7 +54,7 @@ if command -v perl >/dev/null 2>&1; then
     $s =~ s/(\x27[^\x27]*\x27)|"((?:[^"\\]|\\.)*)"/
       do { my $q = $2; defined $1 ? "\x27\x27" : ($q =~ m{\$\(|`} ? "\"$q\"" : "\"\"") } /ge;
     print $s;
-  ')"
+  ')" || scan_line="$command_line"
 fi
 
 # Match `gh` / `fj` at a shell-word boundary, optionally followed by flags,
@@ -84,20 +87,28 @@ done < <(printf '%s\n' "$scan_line" | tr ';&|' '\n\n\n')
 
 $uses_gh || $uses_fj || exit 0
 
-# Honour a leading `cd <dir> &&` / `pushd <dir> &&` (or `;`): the CLI runs in
-# that directory, not the session cwd.
+# Honour a leading `cd <dir>` / `pushd <dir>` followed by `&&`, `||` or `;`:
+# the CLI runs in that directory, not the session cwd. Also accepts a leading
+# `(` subshell, `set …;` prefixes, `-L`/`-P`/`--` flags, and redirections such
+# as `>/dev/null`. A target we can't expand (`$VAR`, `$(…)`, backticks) is
+# ignored, keeping the session cwd.
 repo_dir="${cwd:-$PWD}"
-cd_re='^[[:space:]]*(cd|pushd)[[:space:]]+("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:];&|]+)[[:space:]]*(&&|;)'
+cd_re='^([[:space:]]*set[[:space:]][^;&|]*;)*[[:space:]]*\(?[[:space:]]*(cd|pushd)[[:space:]]+((-[LPe@]|--)[[:space:]]+)*("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:];&|()<>]+)([[:space:]]*[0-9]*>[>&]?[[:space:]]*[^[:space:];&|()<>]+)*[[:space:]]*(&&|\|\||;)'
 if [[ "$command_line" =~ $cd_re ]]; then
-  target="${BASH_REMATCH[2]}"
+  target="${BASH_REMATCH[5]}"
   target="${target#[\"\']}"
   target="${target%[\"\']}"
+  home="${HOME:-}"
   case "$target" in
-    "~")   target="$HOME" ;;
-    "~/"*) target="$HOME/${target#\~/}" ;;
+    "~"|"\$HOME"|"\${HOME}")             target="${home:+$home}" ;;
+    "~/"*)                               target="${home:+$home/${target#\~/}}" ;;
+    "\$HOME/"*)                          target="${home:+$home/${target#\$HOME/}}" ;;
+    "\${HOME}/"*)                        target="${home:+$home/${target#\$\{HOME\}/}}" ;;
   esac
-  [[ "$target" == /* ]] || target="$repo_dir/$target"
-  repo_dir="$target"
+  if [[ -n "$target" && "$target" != *'$'* && "$target" != *'`'* ]]; then
+    [[ "$target" == /* ]] || target="$repo_dir/$target"
+    repo_dir="$target"
+  fi
 fi
 origin_url="$(git -C "$repo_dir" config --get remote.origin.url 2>/dev/null || true)"
 [[ -n "$origin_url" ]] || exit 0
