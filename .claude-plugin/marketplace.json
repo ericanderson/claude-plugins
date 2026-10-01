@@ -9,18 +9,15 @@
   "plugins": [
     {
       "name": "cleanroom",
-      "source": "./plugins/cleanroom",
-      "description": "Launch isolated background agents for unbiased analysis without conversation context contamination"
+      "source": "./plugins/cleanroom"
     },
     {
       "name": "git",
-      "source": "./plugins/git",
-      "description": "Detects GitHub vs Forgejo from the repo origin and steers Claude to the right CLI (gh vs fj). Bundles forgejo-issue and forgejo-pr skills plus a PreToolUse hook that blocks wrong-CLI calls."
+      "source": "./plugins/git"
     },
     {
       "name": "dagu",
-      "source": "./plugins/dagu",
-      "description": "Helpers for operating dagu workflow runs (start, watch via ScheduleWakeup, drill into failures, stop, retry). Ships a generic using-dagu skill; repo-specific DAG names and paths stay in each project's CLAUDE.md."
+      "source": "./plugins/dagu"
     }
   ]
 }

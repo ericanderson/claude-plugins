@@ -1,5 +1,4 @@
 {
   "name": "cleanroom",
-  "description": "Launch isolated background agents for unbiased analysis without conversation context contamination",
-  "version": "1.0.0"
+  "description": "Launch isolated background agents for unbiased analysis without conversation context contamination"
 }
