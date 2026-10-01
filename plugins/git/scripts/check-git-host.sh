@@ -8,7 +8,12 @@
 #
 # Conservative by design: only blocks on a clear mismatch. If jq isn't
 # installed, there's no git repo in cwd, or the origin is neither GitHub nor
-# obviously-Forgejo, the hook gets out of the way.
+# obviously-Forgejo, the hook gets out of the way. It also stays out of the
+# way for `gh -R/--repo` and `fj -H/--host` (explicit target), resolves the
+# repo from a leading `cd <dir> &&`, and ignores gh/fj mentioned only in
+# quoted strings or heredoc bodies.
+#
+# Tests: bash plugins/git/tests/check-git-host.test.sh
 
 set -euo pipefail
 
@@ -25,6 +30,30 @@ command_line="$(printf '%s' "$input" | jq -r '.tool_input.command // ""')"
 cwd="$(printf '%s' "$input" | jq -r '.cwd // ""')"
 [[ -n "$command_line" ]] || exit 0
 
+# Drop text that is data rather than commands before matching: heredoc bodies,
+# single-quoted strings, and double-quoted strings without a command
+# substitution. So writing an issue body that mentions `gh issue create` to a
+# file isn't mistaken for running it. Without perl, match the raw command.
+scan_line="$command_line"
+if command -v perl >/dev/null 2>&1; then
+  scan_line="$(printf '%s' "$command_line" | perl -e '
+    my @out; my @ends;
+    for my $line (split /\n/, do { local $/; <STDIN> }) {
+      if (@ends) {
+        (my $t = $line) =~ s/^\t+//;
+        shift @ends if $t eq $ends[0];
+        next;
+      }
+      while ($line =~ /(?<!<)<<(?!<)-?[ \t]*([\x27"]?)([A-Za-z_][A-Za-z0-9_]*)\1/g) { push @ends, $2 }
+      push @out, $line;
+    }
+    my $s = join "\n", @out;
+    $s =~ s/(\x27[^\x27]*\x27)|"((?:[^"\\]|\\.)*)"/
+      do { my $q = $2; defined $1 ? "\x27\x27" : ($q =~ m{\$\(|`} ? "\"$q\"" : "\"\"") } /ge;
+    print $s;
+  ')"
+fi
+
 # Match `gh` / `fj` at a shell-word boundary, optionally followed by flags,
 # then a repo-scoped subcommand. Deliberately generous — false positives here
 # just mean we look up the origin unnecessarily.
@@ -35,14 +64,41 @@ boundary='(^|[^A-Za-z0-9_-])'
 gh_re="${boundary}gh${flag_re}[[:space:]]+${subcommand_re}([[:space:]]|$)"
 fj_re="${boundary}fj${flag_re}[[:space:]]+${subcommand_re}([[:space:]]|$)"
 
+# An explicit target overrides the cwd: `gh -R/--repo owner/repo` names a
+# GitHub repo, `fj -H/--host <host>` names a Forgejo host.
+gh_explicit_re="${boundary}gh[[:space:]].*(-R|--repo)([[:space:]=]|\$)"
+fj_explicit_re="${boundary}fj[[:space:]].*(-H|--host)([[:space:]=]|\$)"
+
+# Check each simple command on its own, so a flag on one doesn't excuse
+# another.
 uses_gh=false
 uses_fj=false
-printf '%s' "$command_line" | grep -qE "$gh_re" && uses_gh=true
-printf '%s' "$command_line" | grep -qE "$fj_re" && uses_fj=true
+while IFS= read -r segment; do
+  if [[ "$segment" =~ $gh_re ]] && ! [[ "$segment" =~ $gh_explicit_re ]]; then
+    uses_gh=true
+  fi
+  if [[ "$segment" =~ $fj_re ]] && ! [[ "$segment" =~ $fj_explicit_re ]]; then
+    uses_fj=true
+  fi
+done < <(printf '%s\n' "$scan_line" | tr ';&|' '\n\n\n')
 
 $uses_gh || $uses_fj || exit 0
 
+# Honour a leading `cd <dir> &&` / `pushd <dir> &&` (or `;`): the CLI runs in
+# that directory, not the session cwd.
 repo_dir="${cwd:-$PWD}"
+cd_re='^[[:space:]]*(cd|pushd)[[:space:]]+("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:];&|]+)[[:space:]]*(&&|;)'
+if [[ "$command_line" =~ $cd_re ]]; then
+  target="${BASH_REMATCH[2]}"
+  target="${target#[\"\']}"
+  target="${target%[\"\']}"
+  case "$target" in
+    "~")   target="$HOME" ;;
+    "~/"*) target="$HOME/${target#\~/}" ;;
+  esac
+  [[ "$target" == /* ]] || target="$repo_dir/$target"
+  repo_dir="$target"
+fi
 origin_url="$(git -C "$repo_dir" config --get remote.origin.url 2>/dev/null || true)"
 [[ -n "$origin_url" ]] || exit 0
 
