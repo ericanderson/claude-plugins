@@ -18,13 +18,14 @@ fj_dir="$tmp/fj-repo"
 
 pass=0
 fail=0
+hook_env=()   # extra `env` arguments for the next expect calls
 
 # expect <allow|block> <cwd> <command> <description>
 expect() {
   local want="$1" cwd="$2" cmd="$3" desc="$4" code got
   jq -n --arg c "$cmd" --arg d "$cwd" \
     '{tool_name: "Bash", tool_input: {command: $c}, cwd: $d}' \
-    | "$hook" >/dev/null 2>&1
+    | env ${hook_env[@]+"${hook_env[@]}"} "$hook" >/dev/null 2>&1
   code=$?
   case "$code" in
     0) got=allow ;;
@@ -79,6 +80,39 @@ EOF
 gh issue create --body-file f" 'command after the heredoc ends'
 expect block "$gh_dir" 'tr a b <<< "x"
 fj issue view 3' 'here-string is not a heredoc'
+
+# Text handed to a shell or eval runs, so it isn't stripped.
+expect block "$fj_dir" 'bash -c "gh issue create --title x"' 'bash -c with double quotes'
+expect block "$fj_dir" "sh -c 'gh issue create --title x'" 'sh -c with single quotes'
+expect block "$fj_dir" 'eval "gh issue create --title x"' 'eval'
+expect block "$fj_dir" 'bash <<EOF
+gh issue create --title x
+EOF' 'heredoc fed to bash'
+
+# A cd target we can't expand keeps the session cwd.
+expect block "$fj_dir" 'cd "$(git rev-parse --show-toplevel)" && gh pr list' 'cd to $(…) keeps cwd'
+expect block "$fj_dir" 'cd $REPO && gh pr list' 'cd to $VAR keeps cwd'
+expect block "$fj_dir" 'cd `pwd` && gh pr list' 'cd to backticks keeps cwd'
+
+# More leading-cd shapes.
+expect allow "$fj_dir" "(cd $gh_dir && gh pr list)" 'subshell cd'
+expect allow "$fj_dir" "pushd $gh_dir >/dev/null && gh pr list" 'pushd with redirection'
+expect allow "$fj_dir" "cd $gh_dir 2>/dev/null && gh pr list" 'cd with stderr redirection'
+expect allow "$fj_dir" "cd $gh_dir || exit 1; gh pr list" 'cd || exit'
+expect allow "$fj_dir" "set -euo pipefail; cd $gh_dir && gh pr list" 'set prefix before cd'
+expect allow "$fj_dir" "cd -P $gh_dir && gh pr list" 'cd -P'
+expect allow "$fj_dir" "cd -- $gh_dir && gh pr list" 'cd --'
+expect block "$gh_dir" "(cd $gh_dir && fj issue view 3)" 'subshell cd into GitHub repo still blocks fj'
+
+# Failure modes resolve to a decision instead of erroring out.
+hook_env=(-u HOME)
+expect block "$fj_dir" 'cd ~/somewhere && gh issue create --title x' 'HOME unset: cd ~ keeps cwd'
+mkdir -p "$tmp/badperl"
+printf '#!/bin/sh\nexit 1\n' > "$tmp/badperl/perl"
+chmod +x "$tmp/badperl/perl"
+hook_env=(PATH="$tmp/badperl:$PATH")
+expect block "$fj_dir" 'gh issue create --title x' 'perl failing falls back to the raw command'
+hook_env=()
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
